@@ -75,7 +75,7 @@ function Cases() {
 
   const fetchUsers = async () => {
     try {
-      const response = await api.get('/api/auth/users');
+      const response = await api.get('/api/users');
       setUsers(response.data.users || []);
     } catch (error) {
       console.error('Error fetching users:', error);

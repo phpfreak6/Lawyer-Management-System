@@ -94,6 +94,24 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Case number and client are required' });
     }
 
+    // Normalize optional fields: empty strings -> null, numbers parsed
+    const normalize = (v) => (v === '' || v === undefined ? null : v);
+
+    const normalized = {
+      cnr_number: normalize(cnr_number),
+      court_name: normalize(court_name),
+      court_type: normalize(court_type),
+      case_type: normalize(case_type),
+      case_stage: normalize(case_stage) || 'filing',
+      subject: normalize(subject),
+      description: normalize(description),
+      filing_date: normalize(filing_date),
+      next_hearing_date: normalize(next_hearing_date),
+      priority: normalize(priority) || 'medium',
+      assigned_to: normalize(assigned_to),
+      billing_rate: billing_rate === '' || billing_rate === undefined ? null : Number(billing_rate)
+    };
+
     await pool.execute(
       `INSERT INTO cases (
         tenant_id, case_number, client_id, cnr_number, court_name, court_type,
@@ -101,9 +119,23 @@ router.post('/', async (req, res) => {
         priority, assigned_to, billing_rate
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.tenantId, case_number, client_id, cnr_number, court_name, court_type,
-       case_type, case_stage, subject, description, filing_date, next_hearing_date,
-       priority, assigned_to, billing_rate]
+      [
+        req.tenantId,
+        case_number,
+        client_id,
+        normalized.cnr_number,
+        normalized.court_name,
+        normalized.court_type,
+        normalized.case_type,
+        normalized.case_stage,
+        normalized.subject,
+        normalized.description,
+        normalized.filing_date,
+        normalized.next_hearing_date,
+        normalized.priority,
+        normalized.assigned_to,
+        normalized.billing_rate
+      ]
     );
 
     const [cases] = await pool.execute('SELECT * FROM cases ORDER BY id DESC LIMIT 1');
@@ -119,7 +151,19 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = { ...req.body };
+
+    // Normalize: convert empty strings to null, parse numbers
+    Object.keys(updates).forEach((key) => {
+      const value = updates[key];
+      if (value === '' || value === undefined) {
+        updates[key] = null;
+      }
+    });
+    if (updates.billing_rate !== undefined && updates.billing_rate !== null) {
+      updates.billing_rate = Number(updates.billing_rate);
+      if (Number.isNaN(updates.billing_rate)) updates.billing_rate = null;
+    }
 
     // Build dynamic update query
     const updateFields = [];
