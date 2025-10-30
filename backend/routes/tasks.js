@@ -7,6 +7,28 @@ const router = express.Router();
 // All routes require authentication
 router.use(authenticate);
 
+// Helpers
+const normalizeEmptyToNull = (value) => (value === '' || value === undefined ? null : value);
+const toNullableInt = (value) => {
+  if (value === '' || value === undefined || value === null) return null;
+  const n = Number(value);
+  return Number.isNaN(n) ? null : n;
+};
+// Normalize a datetime value for MySQL TIMESTAMP/DATETIME -> 'YYYY-MM-DD HH:MM:SS'
+const normalizeDateTime = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    let s = value.trim();
+    s = s.replace('T', ' ');
+    if (s.endsWith('Z')) s = s.slice(0, -1);
+    if (s.includes('.')) s = s.split('.')[0];
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(s)) s = s + ':00';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s = s + ' 00:00:00';
+    return s;
+  }
+  return null;
+};
+
 // Get all tasks
 router.get('/', async (req, res) => {
   try {
@@ -69,8 +91,17 @@ router.post('/', async (req, res) => {
         priority, due_date, assigned_to
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.tenantId, case_id, client_id, title, description, task_type,
-       priority, due_date, assigned_to]
+      [
+        req.tenantId,
+        toNullableInt(case_id),
+        toNullableInt(client_id),
+        title,
+        normalizeEmptyToNull(description),
+        normalizeEmptyToNull(task_type),
+        priority || 'medium',
+        normalizeDateTime(due_date),
+        toNullableInt(assigned_to)
+      ]
     );
 
     const taskId = result.insertId;
@@ -87,7 +118,26 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = { ...req.body };
+
+    // Normalize: empty strings -> null; integers; datetime
+    Object.keys(updates).forEach((key) => {
+      const value = updates[key];
+      if (value === '' || value === undefined) updates[key] = null;
+    });
+    if (updates.case_id !== undefined) updates.case_id = toNullableInt(updates.case_id);
+    if (updates.client_id !== undefined) updates.client_id = toNullableInt(updates.client_id);
+    if (updates.assigned_to !== undefined) updates.assigned_to = toNullableInt(updates.assigned_to);
+    if (updates.due_date !== undefined) updates.due_date = normalizeDateTime(updates.due_date);
+
+    // Whitelist allowed fields
+    const allowed = new Set([
+      'case_id', 'client_id', 'title', 'description', 'task_type',
+      'priority', 'due_date', 'assigned_to', 'status'
+    ]);
+    Object.keys(updates).forEach((key) => {
+      if (!allowed.has(key)) delete updates[key];
+    });
 
     const updateFields = [];
     const values = [];
