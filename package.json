@@ -1,0 +1,22 @@
+{
+  "name": "lawyer-management-system",
+  "version": "1.0.0",
+  "description": "Multi-tenant SaaS Lawyer Management System with Case, Client, Billing, and Document Management",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd backend && npm run dev",
+    "client": "cd frontend && npm run dev",
+    "install-server": "cd backend && npm install",
+    "install-client": "cd frontend && npm install",
+    "install-all": "npm run install-server && npm run install-client"
+  },
+  "keywords": ["lawyer", "case-management", "legal", "saas"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
+
+
