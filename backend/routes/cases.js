@@ -6,6 +6,22 @@ const router = express.Router();
 // All routes require authentication
 router.use(authenticate);
 
+// Helpers
+const normalizeEmptyToNull = (value) => (value === '' || value === undefined ? null : value);
+const normalizeDate = (value) => {
+  if (!value) return null;
+  // Accepts 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM' or 'YYYY-MM-DD HH:MM[:SS]'
+  if (typeof value === 'string') {
+    if (value.includes('T')) {
+      // datetime-local -> 'YYYY-MM-DD HH:MM:SS'
+      const base = value.replace('T', ' ');
+      return base.length === 16 ? base + ':00' : base;
+    }
+    return value;
+  }
+  return value;
+};
+
 // Get all cases for the tenant
 router.get('/', async (req, res) => {
   try {
@@ -95,20 +111,18 @@ router.post('/', async (req, res) => {
     }
 
     // Normalize optional fields: empty strings -> null, numbers parsed
-    const normalize = (v) => (v === '' || v === undefined ? null : v);
-
     const normalized = {
-      cnr_number: normalize(cnr_number),
-      court_name: normalize(court_name),
-      court_type: normalize(court_type),
-      case_type: normalize(case_type),
-      case_stage: normalize(case_stage) || 'filing',
-      subject: normalize(subject),
-      description: normalize(description),
-      filing_date: normalize(filing_date),
-      next_hearing_date: normalize(next_hearing_date),
-      priority: normalize(priority) || 'medium',
-      assigned_to: normalize(assigned_to),
+      cnr_number: normalizeEmptyToNull(cnr_number),
+      court_name: normalizeEmptyToNull(court_name),
+      court_type: normalizeEmptyToNull(court_type),
+      case_type: normalizeEmptyToNull(case_type),
+      case_stage: normalizeEmptyToNull(case_stage) || 'filing',
+      subject: normalizeEmptyToNull(subject),
+      description: normalizeEmptyToNull(description),
+      filing_date: normalizeDate(normalizeEmptyToNull(filing_date)),
+      next_hearing_date: normalizeDate(normalizeEmptyToNull(next_hearing_date)),
+      priority: normalizeEmptyToNull(priority) || 'medium',
+      assigned_to: normalizeEmptyToNull(assigned_to),
       billing_rate: billing_rate === '' || billing_rate === undefined ? null : Number(billing_rate)
     };
 
@@ -164,6 +178,24 @@ router.put('/:id', async (req, res) => {
       updates.billing_rate = Number(updates.billing_rate);
       if (Number.isNaN(updates.billing_rate)) updates.billing_rate = null;
     }
+    if (updates.filing_date !== undefined) {
+      updates.filing_date = normalizeDate(updates.filing_date);
+    }
+    if (updates.next_hearing_date !== undefined) {
+      updates.next_hearing_date = normalizeDate(updates.next_hearing_date);
+    }
+
+    // Whitelist allowed fields to prevent invalid column errors
+    const allowed = new Set([
+      'case_number', 'client_id', 'cnr_number', 'court_name', 'court_type',
+      'case_type', 'case_stage', 'subject', 'description', 'filing_date',
+      'next_hearing_date', 'priority', 'assigned_to', 'billing_rate', 'status', 'notes'
+    ]);
+    Object.keys(updates).forEach((key) => {
+      if (!allowed.has(key)) {
+        delete updates[key];
+      }
+    });
 
     // Build dynamic update query
     const updateFields = [];
