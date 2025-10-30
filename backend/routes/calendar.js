@@ -244,7 +244,13 @@ router.post('/', async (req, res) => {
 
     const startDt = toMysqlDateTime(start_datetime);
     const endDt = toMysqlDateTime(end_datetime);
-    const reminderMins = reminder_minutes === null ? null : Number(reminder_minutes);
+    const reminderMins = (reminder_minutes === undefined || reminder_minutes === '' || reminder_minutes === null)
+      ? null
+      : Number(reminder_minutes);
+    const caseId = (case_id === undefined || case_id === '') ? null : (Number(case_id) || null);
+    const desc = (description === undefined) ? null : description;
+    const type = (event_type === undefined) ? null : event_type;
+    const loc = (location === undefined) ? null : location;
 
     const [result] = await pool.execute(
       `INSERT INTO calendar_events (
@@ -252,8 +258,8 @@ router.post('/', async (req, res) => {
         start_datetime, end_datetime, location, reminder_minutes
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [req.tenantId, req.user.userId, case_id, title, description, event_type,
-       startDt, endDt, location, reminderMins]
+      [req.tenantId, req.user.userId, caseId, title, desc, type,
+       startDt, endDt, loc, reminderMins]
     );
 
     const eventId = result.insertId;
