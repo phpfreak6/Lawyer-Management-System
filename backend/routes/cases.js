@@ -8,18 +8,37 @@ router.use(authenticate);
 
 // Helpers
 const normalizeEmptyToNull = (value) => (value === '' || value === undefined ? null : value);
-const normalizeDate = (value) => {
+// Normalize a date-only value for MySQL DATE column -> 'YYYY-MM-DD'
+const normalizeDateOnly = (value) => {
   if (!value) return null;
-  // Accepts 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM' or 'YYYY-MM-DD HH:MM[:SS]'
   if (typeof value === 'string') {
-    if (value.includes('T')) {
-      // datetime-local -> 'YYYY-MM-DD HH:MM:SS'
-      const base = value.replace('T', ' ');
-      return base.length === 16 ? base + ':00' : base;
+    // If ISO/datetime provided, take only the date part
+    if (value.includes('T') || value.includes(' ')) {
+      return value.substring(0, 10);
     }
-    return value;
+    // Already a date string
+    return value.substring(0, 10);
   }
-  return value;
+  return null;
+};
+// Normalize a datetime value for MySQL TIMESTAMP/DATETIME -> 'YYYY-MM-DD HH:MM:SS'
+const normalizeDateTime = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    let s = value.trim();
+    // Replace 'T' with space
+    s = s.replace('T', ' ');
+    // Remove trailing 'Z'
+    if (s.endsWith('Z')) s = s.slice(0, -1);
+    // Drop milliseconds if present
+    if (s.includes('.')) s = s.split('.')[0];
+    // Ensure seconds exist
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(s)) s = s + ':00';
+    // If only date provided, add midnight
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) s = s + ' 00:00:00';
+    return s;
+  }
+  return null;
 };
 
 // Get all cases for the tenant
@@ -119,8 +138,8 @@ router.post('/', async (req, res) => {
       case_stage: normalizeEmptyToNull(case_stage) || 'filing',
       subject: normalizeEmptyToNull(subject),
       description: normalizeEmptyToNull(description),
-      filing_date: normalizeDate(normalizeEmptyToNull(filing_date)),
-      next_hearing_date: normalizeDate(normalizeEmptyToNull(next_hearing_date)),
+      filing_date: normalizeDateOnly(normalizeEmptyToNull(filing_date)),
+      next_hearing_date: normalizeDateTime(normalizeEmptyToNull(next_hearing_date)),
       priority: normalizeEmptyToNull(priority) || 'medium',
       assigned_to: normalizeEmptyToNull(assigned_to),
       billing_rate: billing_rate === '' || billing_rate === undefined ? null : Number(billing_rate)
@@ -179,10 +198,10 @@ router.put('/:id', async (req, res) => {
       if (Number.isNaN(updates.billing_rate)) updates.billing_rate = null;
     }
     if (updates.filing_date !== undefined) {
-      updates.filing_date = normalizeDate(updates.filing_date);
+      updates.filing_date = normalizeDateOnly(updates.filing_date);
     }
     if (updates.next_hearing_date !== undefined) {
-      updates.next_hearing_date = normalizeDate(updates.next_hearing_date);
+      updates.next_hearing_date = normalizeDateTime(updates.next_hearing_date);
     }
 
     // Whitelist allowed fields to prevent invalid column errors
