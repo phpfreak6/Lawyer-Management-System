@@ -8,8 +8,6 @@ frontend/dist/
 coverage/
 
 # Environment files
-.env
-.env.*
 backend/.env
 frontend/.env
 
@@ -43,8 +41,6 @@ package-lock.json
 yarn.lock
 
 # Environment variables
-.env
-.env.local
 .env.*.local
 
 # Build outputs
@@ -86,3 +82,4 @@ coverage/
 .cache/
 .temp/
 
+config.bat
