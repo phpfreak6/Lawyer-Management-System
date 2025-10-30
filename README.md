@@ -37,7 +37,7 @@ cd lawyer
 npm run install-all
 ```
 
-3. **Set up PostgreSQL database**
+3. **Set up Mysql database**
 ```bash
 # Create database
 mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS lawyer_db;"
