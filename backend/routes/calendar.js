@@ -252,6 +252,17 @@ router.post('/', async (req, res) => {
     const type = (event_type === undefined) ? null : event_type;
     const loc = (location === undefined) ? null : location;
 
+    // Validate referenced case_id belongs to tenant if provided
+    if (caseId !== null) {
+      const [rows] = await pool.execute(
+        'SELECT id FROM cases WHERE id = ? AND tenant_id = ? LIMIT 1',
+        [caseId, req.tenantId]
+      );
+      if (rows.length === 0) {
+        return res.status(400).json({ error: 'Invalid case_id for this tenant' });
+      }
+    }
+
     const [result] = await pool.execute(
       `INSERT INTO calendar_events (
         tenant_id, user_id, case_id, title, description, event_type,
