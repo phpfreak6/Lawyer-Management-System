@@ -236,4 +236,35 @@ router.post('/:id/expense', authorize('admin', 'lawyer'), async (req, res) => {
   }
 });
 
+// Delete invoice
+router.delete('/:id', authorize('admin', 'lawyer'), async (req, res) => {
+  try {
+    const invoiceId = req.params.id;
+
+    // Optional safety: detach related rows to avoid FK errors if ON DELETE not set as expected
+    await pool.execute(
+      'UPDATE time_entries SET billing_record_id = NULL WHERE billing_record_id = ?'
+      , [invoiceId]
+    );
+    await pool.execute(
+      'UPDATE expenses SET billing_record_id = NULL WHERE billing_record_id = ?'
+      , [invoiceId]
+    );
+
+    const [result] = await pool.execute(
+      'DELETE FROM billing_records WHERE id = ? AND tenant_id = ?'
+      , [invoiceId, req.tenantId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    res.json({ message: 'Invoice deleted successfully' });
+  } catch (error) {
+    console.error('Delete invoice error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
